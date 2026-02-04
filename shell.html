@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Asteroids Quadtree - UTEC</title>
+    <style>
+      body { 
+        font-family: 'Courier New', monospace; 
+        background-color: #0d0d0d; /* Fondo casi negro */
+        color: #00ff00; /* Texto Hacker Verde */
+        margin: 0; 
+        padding: 0; 
+        overflow: hidden; /* Sin barras de scroll */
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+      }
+      
+      h1 {
+        margin-top: 10px;
+        font-size: 20px;
+        text-shadow: 0 0 10px #00ff00;
+        letter-spacing: 2px;
+      }
+
+      /* El lienzo del juego (Canvas) */
+      canvas.emscripten { 
+        border: 2px solid #00ff00; 
+        box-shadow: 0 0 20px rgba(0, 255, 0, 0.4); /* Resplandor */
+        background-color: black;
+        display: block;
+      }
+
+      /* La barra de carga */
+      .spinner { 
+        height: 30px; 
+        width: 30px; 
+        margin: 0; 
+        margin-top: 20px; 
+        display: inline-block;
+        vertical-align: top;
+        animation: rotation .8s linear infinite;
+        border-left: 5px solid #00ff00;
+        border-right: 5px solid transparent;
+        border-bottom: 5px solid #00ff00;
+        border-top: 5px solid transparent;
+        border-radius: 100%;
+        background-color: transparent;
+      }
+
+      @keyframes rotation {
+        from {transform: rotate(0deg);}
+        to {transform: rotate(360deg);}
+      }
+
+      #status {
+        display: inline-block;
+        vertical-align: top;
+        margin-top: 30px;
+        margin-left: 20px;
+        font-weight: bold;
+        color: #cccccc;
+      }
+    </style>
+  </head>
+  <body>
+    
+    <h1>> SYSTEM: ASTEROIDS_QUADTREE_V1.0</h1>
+    
+    <div class="spinner" id='spinner'></div>
+    <div class="emscripten" id="status">Downloading...</div>
+
+    <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+
+    <script type='text/javascript'>
+      var statusElement = document.getElementById('status');
+      var progressElement = document.getElementById('progress');
+      var spinnerElement = document.getElementById('spinner');
+
+      var Module = {
+        print: (function() {
+          return function(text) {
+            console.log(text);
+          };
+        })(),
+        canvas: (function() {
+          var canvas = document.getElementById('canvas');
+          return canvas;
+        })(),
+        setStatus: function(text) {
+          if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
+          if (text === Module.setStatus.last.text) return;
+          
+          var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+          var now = Date.now();
+          if (m && now - Module.setStatus.last.time < 30) return; // if this is a progress update, skip it if too soon
+          Module.setStatus.last.time = now;
+          Module.setStatus.last.text = text;
+          
+          if (m) {
+            text = m[1];
+            spinnerElement.hidden = false;
+          } else {
+            if (!text) spinnerElement.style.display = 'none';
+          }
+          statusElement.innerHTML = text;
+        },
+        totalDependencies: 0,
+        monitorRunDependencies: function(left) {
+          this.totalDependencies = Math.max(this.totalDependencies, left);
+          Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+        }
+      };
+      Module.setStatus('Downloading...');
+      window.onerror = function(event) {
+        Module.setStatus('Exception thrown, see JavaScript console');
+        spinnerElement.style.display = 'none';
+        Module.setStatus = function(text) {
+          if (text) Module.printErr('[post-exception status] ' + text);
+        };
+      };
+    </script>
+    {{{ SCRIPT }}}
+  </body>
+</html>
