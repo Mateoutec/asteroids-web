@@ -1,0 +1,57 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.51 # Versión estable compatible con Raylib
+
+      - name: Download Raylib
+        run: |
+          git clone --depth 1 https://github.com/raysan5/raylib.git raylib
+          cd raylib/src
+          make PLATFORM=PLATFORM_WEB -B
+
+      - name: Compile Game
+        run: |
+          # AQUI ESTÁ LA MAGIA
+          # -s ASYNCIFY: Vital para que el bucle while() de C++ no congele el navegador
+          # -s USE_GLFW=3: Usa OpenGL para web
+          emcc -o index.html main.cpp -Os -Wall raylib/src/libraylib.a \
+          -I. -Iraylib/src -L. -Lraylib/src \
+          -s USE_GLFW=3 -s ASYNCIFY -s TOTAL_MEMORY=67108864 \
+          -DPLATFORM_WEB --shell-file raylib/src/shell.html
+
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
