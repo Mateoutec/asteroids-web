@@ -19,24 +19,24 @@ jobs:
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
-          version: 3.1.51 # Versión estable compatible con Raylib
+          version: 3.1.51
 
       - name: Download Raylib
         run: |
-          git clone --depth 1 https://github.com/raysan5/raylib.git raylib
+          # Usamos la versión 5.0 fija para evitar errores de la versión "master" inestable
+          git clone --depth 1 --branch 5.0 https://github.com/raysan5/raylib.git raylib
           cd raylib/src
           make PLATFORM=PLATFORM_WEB -B
 
       - name: Compile Game
         run: |
-          # AQUI ESTÁ LA MAGIA
-          # -s ASYNCIFY: Vital para que el bucle while() de C++ no congele el navegador
-          # -s USE_GLFW=3: Usa OpenGL para web
-          # CORRECCIÓN AQUÍ ABAJO: --shell-file shell.html
+          # FIX 1: -std=c++17 (Para que entienda tu código moderno)
+          # FIX 2: -s ALLOW_MEMORY_GROWTH=1 (Para que el Quadtree no rompa la RAM)
+          # FIX 3: --shell-file shell.html (Tu archivo de diseño)
           emcc -o index.html main.cpp -Os -Wall raylib/src/libraylib.a \
           -I. -Iraylib/src -L. -Lraylib/src \
-          -s USE_GLFW=3 -s ASYNCIFY -s TOTAL_MEMORY=67108864 \
-          -DPLATFORM_WEB --shell-file shell.html
+          -s USE_GLFW=3 -s ASYNCIFY -s ALLOW_MEMORY_GROWTH=1 \
+          -DPLATFORM_WEB -std=c++17 --shell-file shell.html
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
