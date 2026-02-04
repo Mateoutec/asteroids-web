@@ -21,25 +21,27 @@ jobs:
         with:
           version: 3.1.51
 
-      - name: Download and Build Raylib (Correctly)
+      - name: Download Raylib 5.5 (Igual que en tu CLion)
         run: |
-          git clone --depth 1 --branch 5.0 https://github.com/raysan5/raylib.git raylib
+          git clone --depth 1 --branch 5.5 https://github.com/raysan5/raylib.git raylib
           cd raylib/src
-          # FIX: Usamos 'emmake' para asegurar que se compile para WEB y no para Linux
+          # Compilamos Raylib para la web
           emmake make PLATFORM=PLATFORM_WEB -B
 
-      - name: Debug - List Files
+      - name: Debug - Mostrar dónde quedó la librería
         run: |
-          echo "Buscando librería..."
-          ls -l raylib/src/libraylib.a
+          echo "Buscando archivo libraylib.a..."
+          find raylib -name "libraylib.a"
 
-      - name: Compile Game
+      - name: Compile Game (Comando Blindado)
         run: |
-          # FIX: Rutas explícitas y banderas de memoria
+          # Usamos la ruta exacta que suele generar Raylib 5.5
           emcc -o index.html main.cpp -Os -Wall raylib/src/libraylib.a \
           -I. -Iraylib/src -L. -Lraylib/src \
           -s USE_GLFW=3 -s ASYNCIFY -s ALLOW_MEMORY_GROWTH=1 \
-          -DPLATFORM_WEB -std=c++17 --shell-file shell.html
+          -s FORCE_FILESYSTEM=1 \
+          -DPLATFORM_WEB -std=c++17 \
+          --shell-file shell.html
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
