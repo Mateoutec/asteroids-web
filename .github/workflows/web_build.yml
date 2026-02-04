@@ -21,27 +21,56 @@ jobs:
         with:
           version: 3.1.51
 
-      - name: Download Raylib 5.5 (Igual que en tu CLion)
+      # PASO MAGICO: Creamos la receta CMake en el servidor
+      # Esto asegura que GitHub compile EXACTAMENTE igual que tu CLion
+      - name: Generar CMakeLists.txt
         run: |
-          git clone --depth 1 --branch 5.5 https://github.com/raysan5/raylib.git raylib
-          cd raylib/src
-          # Compilamos Raylib para la web
-          emmake make PLATFORM=PLATFORM_WEB -B
+          cat <<EOF > CMakeLists.txt
+          cmake_minimum_required(VERSION 3.11)
+          project(AsteroidsWeb)
+          set(CMAKE_CXX_STANDARD 17)
 
-      - name: Debug - Mostrar dónde quedó la librería
-        run: |
-          echo "Buscando archivo libraylib.a..."
-          find raylib -name "libraylib.a"
+          # 1. Descargar Raylib 5.5 (La versión que te funcionó)
+          include(FetchContent)
+          FetchContent_Declare(
+            raylib
+            GIT_REPOSITORY https://github.com/raysan5/raylib.git
+            GIT_TAG 5.5
+          )
+          FetchContent_MakeAvailable(raylib)
 
-      - name: Compile Game (Comando Blindado)
+          # 2. Configurar tu juego
+          add_executable(index main.cpp)
+          target_link_libraries(index raylib)
+
+          # 3. Configurar la Web (HTML5)
+          # Esto le dice a CMake que el resultado debe ser un .html
+          set_target_properties(index PROPERTIES SUFFIX ".html")
+          
+          # Estas son las banderas vitales para que no se congele el navegador
+          target_link_options(index PRIVATE 
+            "-sUSE_GLFW=3" 
+            "-sASYNCIFY" 
+            "-sALLOW_MEMORY_GROWTH=1" 
+            "-sFORCE_FILESYSTEM=1"
+            "--shell-file=\${CMAKE_CURRENT_SOURCE_DIR}/shell.html"
+          )
+          EOF
+
+      - name: Compilar (Usando CMake)
         run: |
-          # Usamos la ruta exacta que suele generar Raylib 5.5
-          emcc -o index.html main.cpp -Os -Wall raylib/src/libraylib.a \
-          -I. -Iraylib/src -L. -Lraylib/src \
-          -s USE_GLFW=3 -s ASYNCIFY -s ALLOW_MEMORY_GROWTH=1 \
-          -s FORCE_FILESYSTEM=1 \
-          -DPLATFORM_WEB -std=c++17 \
-          --shell-file shell.html
+          # 'emcmake' configura el proyecto para WebAssembly
+          emcmake cmake -S . -B build -DPLATFORM=Web -DGRAPHICS=GRAPHICS_API_OPENGL_ES2
+          
+          # Construimos el proyecto (esto tardará unos minutos la primera vez)
+          cmake --build build
+
+      - name: Preparar archivos para subir
+        run: |
+          # Movemos los archivos generados a la carpeta principal
+          cp build/index.html .
+          cp build/index.js .
+          cp build/index.wasm .
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
