@@ -1,5 +1,5 @@
 /**
- * PROYECTO: ASTEROIDS QUADTREE + BOT SNIPER
+ * PROYECTO: ASTEROIDS QUADTREE + BOT SNIPER + UI
  * AUTOR: Mateo Llallire Meza
  * FECHA: 03/02/2026
  */
@@ -328,9 +328,6 @@ public:
             float endY = centerY + shapePoints[nextIndex].y;
             DrawLine((int)startX, (int)startY, (int)endX, (int)endY, WHITE);
         }
-
-        // Comentar para ocultar cajas de colision
-        // DrawRectangleLines((int)x, (int)y, (int)width, (int)height, Fade(RED, 0.3f));
     }
 };
 
@@ -399,13 +396,13 @@ public:
 };
 
 // ==========================================
-// AQUI INICIA LA IA (BOT PLAYER) - MODO FRANCOTIRADOR
+// AQUI INICIA LA IA (BOT PLAYER)
 // ==========================================
 class BotPlayer : public Player {
 public:
     BotPlayer(MiVector<Entity*>* entitiesPtr)
         : Player(entitiesPtr) {
-        acceleration = 1800.0f; // Más agresivo
+        acceleration = 1800.0f;
         friction = 0.94f;
     }
 
@@ -415,7 +412,7 @@ public:
         Entity* target = nullptr;
         float minDistance = 100000.0f;
 
-        // 1. ESCANEAR (Directo y seguro)
+        // 1. ESCANEAR
         for (size_t i = 0; i < gameEntitiesRef->size(); i++) {
             Entity* e = (*gameEntitiesRef)[i];
 
@@ -439,9 +436,7 @@ public:
         // 2. LÓGICA DE COMBATE PREDICTIVA
         if (target != nullptr) {
             Asteroid* astTarget = dynamic_cast<Asteroid*>(target);
-
-            // --- MATEMÁTICA DE PREDICCIÓN (La magia) ---
-            float timeToHit = minDistance / 1100.0f; // Distancia / VelBala
+            float timeToHit = minDistance / 1100.0f; 
 
             // Predecir futuro
             float futureX = target->x + (astTarget->velocity.x * timeToHit);
@@ -465,12 +460,10 @@ public:
             if (diff > 0) rotation += 400.0f * dt;
             else rotation -= 400.0f * dt;
 
-            // 3. DISPARAR (Aimbot)
             if (abs(diff) < 10.0f) {
                 if ((rand() % 100) < 15) shoot();
             }
 
-            // 4. EVASIÓN INTELIGENTE
             if (minDistance < 180.0f) {
                 velocity.x -= cos(desiredAngle * DEG2RAD) * acceleration * dt;
                 velocity.y -= sin(desiredAngle * DEG2RAD) * acceleration * dt;
@@ -480,7 +473,6 @@ public:
             }
         }
 
-        // Físicas
         x += velocity.x * dt;
         y += velocity.y * dt;
 
@@ -492,7 +484,6 @@ public:
 
     void draw() override {
         Player::draw();
-        // Mira láser Morada
         DrawLine(x+width/2, y+height/2,
                  x+width/2 + cos(rotation*DEG2RAD)*800,
                  y+height/2 + sin(rotation*DEG2RAD)*800,
@@ -501,107 +492,196 @@ public:
 };
 
 // ==========================================
-// MAIN (GESTIÓN DEL JUEGO)
+// FUNCIONES DE AYUDA (UI Y ESTADO)
 // ==========================================
 
-int main() {
-    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "UTEC - Asteroids Quadtree + Sniper Bot");
-    SetTargetFPS(60);
+void ReiniciarJuego(MiVector<Entity*>& entities, bool modoBot) {
+    // 1. Limpiar memoria antigua
+    for (size_t i = 0; i < entities.size(); i++) {
+        delete entities[i];
+    }
+    entities.clear();
 
-    MiVector<Entity*> entities;
+    // 2. Crear Jugador (Bot o Humano)
+    if (modoBot) {
+        BotPlayer* bot = new BotPlayer(&entities);
+        entities.push_back(bot);
+    } else {
+        Player* player = new Player(&entities);
+        entities.push_back(player);
+    }
 
-    Rect screenRect = { 0, 0, (float)SCREEN_WIDTH, (float)SCREEN_HEIGHT };
-    Quadtree* quadtree = new Quadtree(0, screenRect);
-
-    // --- ACTIVAR BOT ---
-    BotPlayer* bot = new BotPlayer(&entities);
-    entities.push_back(bot);
-
-    // Crear Asteroides iniciales
+    // 3. Crear Asteroides iniciales
     for (int i = 0; i < 8; i++) {
         float x = (rand() % SCREEN_WIDTH);
         float y = (rand() % SCREEN_HEIGHT);
+        // Evitar que aparezcan encima del jugador (centro)
         if (abs(x - SCREEN_WIDTH/2) < 100) x += 200;
         entities.push_back(new Asteroid(x, y, 3));
     }
+}
 
+// Botón simple con efecto hover
+bool DibujarBoton(const char* texto, float x, float y, float w, float h) {
+    Vector2 mouse = GetMousePosition();
+    Rectangle btnRect = { x, y, w, h };
+    bool hover = CheckCollisionPointRec(mouse, btnRect);
+
+    // Fondo
+    DrawRectangleRec(btnRect, hover ? DARKGREEN : BLACK);
+    // Borde
+    DrawRectangleLinesEx(btnRect, 2, hover ? GREEN : DARKGREEN);
+
+    // Texto Centrado
+    int fontSize = 20;
+    int textWidth = MeasureText(texto, fontSize);
+    DrawText(texto, x + (w - textWidth)/2, y + (h - fontSize)/2, fontSize, hover ? WHITE : GREEN);
+
+    return hover && IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
+}
+
+// ==========================================
+// MAIN (GESTIÓN DEL JUEGO + ESTADOS)
+// ==========================================
+
+// Definimos los estados del juego
+enum EstadoJuego {
+    MENU_PRINCIPAL,
+    SELECCION_MODO,
+    JUGANDO
+};
+
+int main() {
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "UTEC - Asteroids Quadtree");
+    SetTargetFPS(60);
+
+    // Variables del sistema
+    EstadoJuego estadoActual = MENU_PRINCIPAL;
+    MiVector<Entity*> entities;
+    Rect screenRect = { 0, 0, (float)SCREEN_WIDTH, (float)SCREEN_HEIGHT };
+    Quadtree* quadtree = new Quadtree(0, screenRect);
     bool showDebug = true;
 
     while (!WindowShouldClose()) {
-
-        // 1. UPDATE
-        for (size_t i = 0; i < entities.size(); i++) {
-            entities[i]->update();
-        }
-
-        // 2. CONSTRUIR QUADTREE
-        quadtree->clear();
-        for (size_t i = 0; i < entities.size(); i++) {
-            if (entities[i]->active) {
-                quadtree->insert(entities[i]);
+        
+        // ==========================================================
+        // LÓGICA DE ACTUALIZACIÓN SEGÚN EL ESTADO
+        // ==========================================================
+        
+        if (estadoActual == JUGANDO) {
+            
+            // Regresar al menú con ESC
+            if (IsKeyPressed(KEY_ESCAPE)) {
+                estadoActual = MENU_PRINCIPAL;
             }
-        }
 
-        // 3. COLISIONES (USANDO QUADTREE)
-        MiVector<Entity*> returnObjects;
+            // 1. UPDATE ENTIDADES
+            for (size_t i = 0; i < entities.size(); i++) {
+                entities[i]->update();
+            }
 
-        for (size_t i = 0; i < entities.size(); i++) {
-            Entity* entityA = entities[i];
-            if (!entityA->active) continue;
+            // 2. CONSTRUIR QUADTREE
+            quadtree->clear();
+            for (size_t i = 0; i < entities.size(); i++) {
+                if (entities[i]->active) {
+                    quadtree->insert(entities[i]);
+                }
+            }
 
-            returnObjects.clear();
-            quadtree->retrieve(returnObjects, entityA); // Optimización log(N)
+            // 3. COLISIONES
+            MiVector<Entity*> returnObjects;
+            for (size_t i = 0; i < entities.size(); i++) {
+                Entity* entityA = entities[i];
+                if (!entityA->active) continue;
 
-            for (size_t j = 0; j < returnObjects.size(); j++) {
-                Entity* entityB = returnObjects[j];
-                if (entityA == entityB) continue;
+                returnObjects.clear();
+                quadtree->retrieve(returnObjects, entityA);
 
-                Bullet* bullet = dynamic_cast<Bullet*>(entityA);
-                Asteroid* asteroid = dynamic_cast<Asteroid*>(entityB);
+                for (size_t j = 0; j < returnObjects.size(); j++) {
+                    Entity* entityB = returnObjects[j];
+                    if (entityA == entityB) continue;
 
-                if (bullet && asteroid) {
-                    if (bullet->getBounds().intersects(asteroid->getBounds())) {
-                        bullet->active = false;
-                        asteroid->active = false;
+                    Bullet* bullet = dynamic_cast<Bullet*>(entityA);
+                    Asteroid* asteroid = dynamic_cast<Asteroid*>(entityB);
 
-                        if (asteroid->sizeLevel > 1) {
-                            int newSize = asteroid->sizeLevel - 1;
-                            entities.push_back(new Asteroid(asteroid->x, asteroid->y, newSize));
-                            entities.push_back(new Asteroid(asteroid->x, asteroid->y, newSize));
+                    if (bullet && asteroid) {
+                        if (bullet->getBounds().intersects(asteroid->getBounds())) {
+                            bullet->active = false;
+                            asteroid->active = false;
+                            if (asteroid->sizeLevel > 1) {
+                                int newSize = asteroid->sizeLevel - 1;
+                                entities.push_back(new Asteroid(asteroid->x, asteroid->y, newSize));
+                                entities.push_back(new Asteroid(asteroid->x, asteroid->y, newSize));
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // 4. LIMPIEZA
-        for (int i = entities.size() - 1; i >= 0; i--) {
-            if (!entities[i]->active) {
-                delete entities[i];
-                entities.erase(i);
+            // 4. LIMPIEZA
+            for (int i = entities.size() - 1; i >= 0; i--) {
+                if (!entities[i]->active) {
+                    delete entities[i];
+                    entities.erase(i);
+                }
             }
+            if (IsKeyPressed(KEY_P)) showDebug = !showDebug;
         }
 
-        if (IsKeyPressed(KEY_P)) showDebug = !showDebug;
-
-        // 5. RENDER
+        // ==========================================================
+        // DIBUJADO (RENDER)
+        // ==========================================================
+        
         BeginDrawing();
         ClearBackground(BLACK);
 
-        for (size_t i = 0; i < entities.size(); i++) {
-            entities[i]->draw();
-        }
-
-        DrawText("Francotirador Bot Activo", 10, 10, 20, PURPLE);
-        DrawText(TextFormat("Entidades: %i", entities.size()), 10, 30, 20, GREEN);
-
-        if (showDebug) {
-            MiVector<Rect> allNodes;
-            quadtree->getAllBounds(allNodes);
-            for (size_t i = 0; i < allNodes.size(); i++) {
-                DrawRectangleLines((int)allNodes[i].x, (int)allNodes[i].y,
-                                   (int)allNodes[i].width, (int)allNodes[i].height, Fade(GRAY, 0.4f));
+        if (estadoActual == MENU_PRINCIPAL) {
+            // --- PANTALLA DE TITULO ---
+            DrawText("ASTEROIDS", SCREEN_WIDTH/2 - MeasureText("ASTEROIDS", 60)/2, 100, 60, GREEN);
+            DrawText("QUADTREE EDITION", SCREEN_WIDTH/2 - MeasureText("QUADTREE EDITION", 20)/2, 160, 20, GRAY);
+            
+            // Boton PLAY
+            if (DibujarBoton("PLAY", SCREEN_WIDTH/2 - 100, 250, 200, 50)) {
+                estadoActual = SELECCION_MODO;
             }
+            
+            DrawText("Mateo Llallire Meza - UTEC", 10, SCREEN_HEIGHT - 30, 15, DARKGRAY);
+
+        } 
+        else if (estadoActual == SELECCION_MODO) {
+            // --- PANTALLA DE SELECCION ---
+            DrawText("SELECCIONA MODO", SCREEN_WIDTH/2 - MeasureText("SELECCIONA MODO", 30)/2, 100, 30, GREEN);
+            
+            // Opcion 1: Solo
+            if (DibujarBoton("JUGAR SOLO", SCREEN_WIDTH/2 - 100, 200, 200, 50)) {
+                ReiniciarJuego(entities, false); // false = Humano
+                estadoActual = JUGANDO;
+            }
+
+            // Opcion 2: Bot
+            if (DibujarBoton("JUGAR CON BOT", SCREEN_WIDTH/2 - 100, 280, 200, 50)) {
+                ReiniciarJuego(entities, true); // true = Bot
+                estadoActual = JUGANDO;
+            }
+            
+            DrawText("(Presiona ESC para volver)", 10, 10, 10, GRAY);
+        } 
+        else if (estadoActual == JUGANDO) {
+            // --- JUEGO ---
+            for (size_t i = 0; i < entities.size(); i++) {
+                entities[i]->draw();
+            }
+
+            if (showDebug) {
+                MiVector<Rect> allNodes;
+                quadtree->getAllBounds(allNodes);
+                for (size_t i = 0; i < allNodes.size(); i++) {
+                    DrawRectangleLines((int)allNodes[i].x, (int)allNodes[i].y,
+                                       (int)allNodes[i].width, (int)allNodes[i].height, Fade(GRAY, 0.4f));
+                }
+            }
+            
+            DrawText("Presiona ESC para Menu", 10, SCREEN_HEIGHT - 20, 10, GRAY);
         }
 
         EndDrawing();
