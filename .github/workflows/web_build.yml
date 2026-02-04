@@ -32,10 +32,11 @@ jobs:
           # AQUI ESTÁ LA MAGIA
           # -s ASYNCIFY: Vital para que el bucle while() de C++ no congele el navegador
           # -s USE_GLFW=3: Usa OpenGL para web
+          # CORRECCIÓN AQUÍ ABAJO: --shell-file shell.html
           emcc -o index.html main.cpp -Os -Wall raylib/src/libraylib.a \
           -I. -Iraylib/src -L. -Lraylib/src \
           -s USE_GLFW=3 -s ASYNCIFY -s TOTAL_MEMORY=67108864 \
-          -DPLATFORM_WEB --shell-file raylib/src/shell.html
+          -DPLATFORM_WEB --shell-file shell.html
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
