@@ -21,8 +21,6 @@ jobs:
         with:
           version: 3.1.51
 
-      # PASO MAGICO: Creamos la receta CMake en el servidor
-      # Esto asegura que GitHub compile EXACTAMENTE igual que tu CLion
       - name: Generar CMakeLists.txt
         run: |
           cat <<EOF > CMakeLists.txt
@@ -30,7 +28,7 @@ jobs:
           project(AsteroidsWeb)
           set(CMAKE_CXX_STANDARD 17)
 
-          # 1. Descargar Raylib 5.5 (La versión que te funcionó)
+          # 1. Descargar Raylib 5.5
           include(FetchContent)
           FetchContent_Declare(
             raylib
@@ -44,30 +42,26 @@ jobs:
           target_link_libraries(index raylib)
 
           # 3. Configurar la Web (HTML5)
-          # Esto le dice a CMake que el resultado debe ser un .html
           set_target_properties(index PROPERTIES SUFFIX ".html")
           
-          # Estas son las banderas vitales para que no se congele el navegador
+          # AQUI ESTA EL FIX (-sGL_ENABLE_GET_PROC_ADDRESS)
           target_link_options(index PRIVATE 
             "-sUSE_GLFW=3" 
             "-sASYNCIFY" 
             "-sALLOW_MEMORY_GROWTH=1" 
             "-sFORCE_FILESYSTEM=1"
+            "-sGL_ENABLE_GET_PROC_ADDRESS=1"
             "--shell-file=\${CMAKE_CURRENT_SOURCE_DIR}/shell.html"
           )
           EOF
 
       - name: Compilar (Usando CMake)
         run: |
-          # 'emcmake' configura el proyecto para WebAssembly
           emcmake cmake -S . -B build -DPLATFORM=Web -DGRAPHICS=GRAPHICS_API_OPENGL_ES2
-          
-          # Construimos el proyecto (esto tardará unos minutos la primera vez)
           cmake --build build
 
       - name: Preparar archivos para subir
         run: |
-          # Movemos los archivos generados a la carpeta principal
           cp build/index.html .
           cp build/index.js .
           cp build/index.wasm .
